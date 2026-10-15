@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeGraph AI — Code Architecture & Security Knowledge Graph</title>
+  <meta name="description" content="AI-Powered Code Architecture Mapping and Static Security Analysis using Neo4j Knowledge Graphs.">
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- vis-network library -->
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+  <!-- CodeGraph Theme Stylesheet -->
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- ==============================================================================
+       Header Bar
+       ============================================================================== -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-logo">CG</div>
+      <div class="brand-title">
+        CodeGraph AI
+        <span class="brand-tag">v1.0</span>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <!-- Project Selection -->
+      <div class="project-select-wrapper">
+        <label for="project-selector">Project:</label>
+        <select id="project-selector" class="project-select">
+          <option value="">Loading projects...</option>
+        </select>
+      </div>
+
+      <!-- Neo4j Status Badge -->
+      <div id="neo4j-status-badge" class="status-badge" title="Connecting to database...">
+        <div id="neo4j-status-dot" class="status-dot disconnected"></div>
+        <span id="neo4j-status-text">Checking Neo4j...</span>
+      </div>
+
+      <!-- Action Buttons -->
+      <button class="btn btn-primary" onclick="App.openScanModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Scan Project
+      </button>
+
+      <button class="btn btn-secondary" onclick="App.loadProjects()" title="Reload project data">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==============================================================================
+       App Body Layout (Sidebar + Main Content Panes)
+       ============================================================================== -->
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="app-sidebar">
+      <ul class="sidebar-nav">
+        <li class="nav-item active" data-tab="overview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          Overview
+        </li>
+        <li class="nav-item" data-tab="graph">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+          Dependency Graph
+        </li>
+        <li class="nav-item" data-tab="files">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+          Files & Symbols
+        </li>
+        <li class="nav-item" data-tab="findings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          Security Findings
+        </li>
+        <li class="nav-item" data-tab="insights">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          Architecture Insights
+        </li>
+        <li class="nav-item" data-tab="ai">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          AI Review
+        </li>
+        <li class="nav-item" data-tab="history">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Scan History
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div>Neo4j Knowledge Graph</div>
+        <div style="margin-top: 2px;">Open-Source Edition</div>
+      </div>
+    </aside>
+
+    <!-- Main View Content Area -->
+    <main class="main-content">
+
+      <!-- ========================================================================
+           TAB 1: Overview
+           ======================================================================== -->
+      <section id="tab-overview" class="tab-pane active">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Architecture & Security Overview</h1>
+            <p id="overview-scan-time" class="view-subtitle">Select a project to review metrics</p>
+          </div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="metrics-grid">
+          <div class="metric-card accent-blue">
+            <span class="metric-label">Source Files</span>
+            <div id="stat-files" class="metric-value">0</div>
+            <div class="metric-footer">Analyzed code modules</div>
+          </div>
+
+          <div class="metric-card accent-green">
+            <span class="metric-label">Symbols Defined</span>
+            <div id="stat-symbols" class="metric-value">0</div>
+            <div class="metric-footer">Functions, methods & classes</div>
+          </div>
+
+          <div class="metric-card accent-purple">
+            <span class="metric-label">External Packages</span>
+            <div id="stat-packages" class="metric-value">0</div>
+            <div class="metric-footer">Third-party integrations</div>
+          </div>
+
+          <div class="metric-card accent-red">
+            <span class="metric-label">Security Findings</span>
+            <div class="severity-breakdown">
+              <span class="sev-pill high"><b id="stat-high-findings">0</b> High</span>
+              <span class="sev-pill medium"><b id="stat-med-findings">0</b> Med</span>
+              <span class="sev-pill low"><b id="stat-low-findings">0</b> Low</span>
+            </div>
+            <div class="metric-footer" style="margin-top: 8px;">Static rule violations</div>
+          </div>
+        </div>
+
+        <!-- Architecture Quick Preview -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px;">
+          <div class="metric-card">
+            <span class="metric-label" style="margin-bottom: 8px;">Top Dependency Hotspots</span>
+            <div id="overview-hotspots-list">
+              <p style="font-size: 13px; color: var(--text-muted);">Loading hotspots...</p>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-label" style="margin-bottom: 8px;">Quick Actions</span>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <button class="btn btn-secondary" onclick="App.switchTab('graph')">
+                Open Interactive Knowledge Graph
+              </button>
+              <button class="btn btn-secondary" onclick="App.switchTab('findings')">
+                Review Static Security Findings
+              </button>
+              <button class="btn btn-accent" onclick="App.switchTab('ai')">
+                Generate Architecture AI Review
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================
+           TAB 2: Interactive Dependency Graph
+           ======================================================================== -->
+      <section id="tab-graph" class="tab-pane">
+        <div class="graph-view-container">
+          <!-- Graph Toolbar -->
+          <div class="graph-toolbar">
+            <div class="graph-filter-group">
+              <label class="filter-chip"><input type="checkbox" id="filter-files" checked> Files</label>
+              <label class="filter-chip"><input type="checkbox" id="filter-symbols" checked> Symbols</label>
+              <label class="filter-chip"><input type="checkbox" id="filter-packages" checked> Packages</label>
+              <label class="filter-chip"><input type="checkbox" id="filter-findings" checked> Findings</label>
+            </div>
+
+            <input type="text" id="graph-search-input" class="graph-search-input" placeholder="Search node...">
+
+            <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="GraphVisualizer.togglePhysics()">
+              Physics
+            </button>
+            <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 11px;" onclick="GraphVisualizer.fit()">
+              Reset View
+            </button>
+            <span id="graph-node-count" style="font-size: 11px; color: var(--text-muted); margin-left: 6px;"></span>
+          </div>
+
+          <!-- vis-network canvas -->
+          <div id="graph-canvas" class="graph-canvas"></div>
+
+          <!-- Side Node Inspector -->
+          <div id="graph-inspector" class="graph-sidebar-inspector">
+            <div class="inspector-title">Node Inspector</div>
+            <p style="font-size: 13px; color: var(--text-muted);">
+              Click any node in the graph to view file details, symbols, package references, or security rule parameters.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================
+           TAB 3: Files & Symbols
+           ======================================================================== -->
+      <section id="tab-files" class="tab-pane">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Project Files & Symbols</h1>
+            <p class="view-subtitle">Detailed breakdown of lines of code, defined symbols, and security findings.</p>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>File Path</th>
+                <th>Language</th>
+                <th>Lines of Code</th>
+                <th>Symbols</th>
+                <th>Findings</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="files-tbody">
+              <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading files...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ========================================================================
+           TAB 4: Security Findings
+           ======================================================================== -->
+      <section id="tab-findings" class="tab-pane">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Static Security Findings</h1>
+            <p class="view-subtitle">Static security indicators, injection risks, unsafe deserialization, and dangerous sinks.</p>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <select id="findings-severity-filter" class="project-select" style="min-width: 120px;">
+              <option value="ALL">All Severities</option>
+              <option value="HIGH">High Severity</option>
+              <option value="MEDIUM">Medium Severity</option>
+              <option value="LOW">Low Severity</option>
+            </select>
+            <input type="text" id="findings-search-input" class="text-input" placeholder="Filter by rule or text..." style="width: 200px; padding: 6px 12px;">
+            <span id="findings-count-badge" class="sev-pill low">0 Findings</span>
+          </div>
+        </div>
+
+        <div id="findings-list-container" style="display: flex; flex-direction: column; gap: 12px;">
+          <p style="color: var(--text-muted);">Loading security findings...</p>
+        </div>
+      </section>
+
+      <!-- ========================================================================
+           TAB 5: Architecture Insights
+           ======================================================================== -->
+      <section id="tab-insights" class="tab-pane">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Architecture Insights</h1>
+            <p class="view-subtitle">Graph-derived structural metrics, coupling analysis, and circular dependency checks.</p>
+          </div>
+        </div>
+
+        <!-- Circular Dependencies Alert Box -->
+        <div id="insights-circular-container"></div>
+
+        <!-- Hotspots & Top Packages Split Grid -->
+        <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 20px;">
+          <!-- Hotspots Table -->
+          <div>
+            <h3 style="font-size: 15px; margin-bottom: 8px;">Dependency Hotspots (In-Degree & Out-Degree)</h3>
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Module Path</th>
+                    <th>In-Degree</th>
+                    <th>Out-Degree</th>
+                    <th>Total Couplings</th>
+                  </tr>
+                </thead>
+                <tbody id="insights-hotspots-tbody">
+                  <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Loading hotspots...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Top External Packages Table -->
+          <div>
+            <h3 style="font-size: 15px; margin-bottom: 8px;">Top External Packages</h3>
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Package Name</th>
+                    <th>Imported By</th>
+                  </tr>
+                </thead>
+                <tbody id="insights-packages-tbody">
+                  <tr><td colspan="2" style="text-align: center; color: var(--text-muted);">Loading packages...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Largest Files Table -->
+        <div style="margin-top: 10px;">
+          <h3 style="font-size: 15px; margin-bottom: 8px;">Largest Files by Lines of Code</h3>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Path</th>
+                  <th>Language</th>
+                  <th>Lines of Code</th>
+                </tr>
+              </thead>
+              <tbody id="insights-largest-tbody">
+                <tr><td colspan="3" style="text-align: center; color: var(--text-muted);">Loading files...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================
+           TAB 6: AI Review
+           ======================================================================== -->
+      <section id="tab-ai" class="tab-pane">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">AI Architecture & Security Review</h1>
+            <p class="view-subtitle">Automated structural evaluation, refactoring priorities, and risk synthesis.</p>
+          </div>
+          <button id="btn-generate-ai" class="btn btn-accent" onclick="App.triggerAIReview()">
+            Generate AI Review
+          </button>
+        </div>
+
+        <div id="ai-review-content">
+          <div style="text-align: center; padding: 48px; color: var(--text-muted);">
+            Click <b>"Generate AI Review"</b> to synthesize knowledge graph metrics and vulnerability mitigations.
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================
+           TAB 7: Scan History
+           ======================================================================== -->
+      <section id="tab-history" class="tab-pane">
+        <div class="view-header">
+          <div>
+            <h1 class="view-title">Scan History</h1>
+            <p class="view-subtitle">Review previously persisted projects, export JSON architecture reports, or delete data.</p>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Project Name</th>
+                <th>Timestamp</th>
+                <th>Files</th>
+                <th>Findings</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody">
+              <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading scan history...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ==============================================================================
+       Modal: Scan Project (ZIP or Path)
+       ============================================================================== -->
+  <div id="scan-modal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Scan Codebase Architecture</div>
+        <button class="modal-close" onclick="App.closeScanModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-tabs">
+          <div class="modal-tab active" data-mode="path">Local Folder Path</div>
+          <div class="modal-tab" data-mode="zip">Upload ZIP File</div>
+        </div>
+
+        <!-- Mode 1: Local Path -->
+        <div id="modal-tab-path">
+          <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">
+            Local Project Path:
+          </label>
+          <input type="text" id="local-path-input" class="text-input" placeholder="e.g., samples/demo_project or C:\Path\To\Codebase">
+          
+          <div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="App.fillDemoPath()">
+              Use Bundled Demo Project
+            </button>
+          </div>
+
+          <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-top: 14px; margin-bottom: 6px;">
+            Optional Project Name:
+          </label>
+          <input type="text" id="local-name-input" class="text-input" placeholder="Demo Project">
+
+          <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px;">
+            <button class="btn btn-secondary" onclick="App.closeScanModal()">Cancel</button>
+            <button class="btn btn-primary scan-submit-btn" onclick="App.submitPathScan()">Start Scan</button>
+          </div>
+        </div>
+
+        <!-- Mode 2: ZIP Upload -->
+        <div id="modal-tab-zip" style="display: none;">
+          <div id="zip-dropzone" class="upload-dropzone">
+            <input type="file" id="zip-file-input" accept=".zip" style="display: none;">
+            <div style="font-size: 28px; margin-bottom: 8px;">📦</div>
+            <div style="font-size: 13px; font-weight: 600;">Click to browse or drag & drop project .zip here</div>
+            <div id="zip-file-name" style="font-size: 12px; color: var(--accent-blue); margin-top: 6px;"></div>
+          </div>
+
+          <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-top: 14px; margin-bottom: 6px;">
+            Optional Project Name:
+          </label>
+          <input type="text" id="zip-name-input" class="text-input" placeholder="My Codebase">
+
+          <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px;">
+            <button class="btn btn-secondary" onclick="App.closeScanModal()">Cancel</button>
+            <button class="btn btn-primary scan-submit-btn" onclick="App.submitZipScan()">Upload & Scan</button>
+          </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div id="scan-loading-indicator" style="display: none; align-items: center; gap: 10px; padding: 12px; background-color: var(--bg-tertiary); border-radius: var(--radius-sm); margin-top: 8px;">
+          <div style="font-size: 16px;">⏳</div>
+          <span id="scan-loading-msg" style="font-size: 12px; color: var(--text-secondary);">Analyzing...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================================================================
+       Modal: File Inspector Details
+       ============================================================================== -->
+  <div id="file-details-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <div class="modal-title">File Details Inspector</div>
+        <button class="modal-close" onclick="App.closeFileModal()">&times;</button>
+      </div>
+      <div id="file-details-modal-content" class="modal-body">
+        Loading details...
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Application JavaScript Modules -->
+  <script src="/js/api.js"></script>
+  <script src="/js/graph.js"></script>
+  <script src="/js/dashboard.js"></script>
+  <script src="/js/findings.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
